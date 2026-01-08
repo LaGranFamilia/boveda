@@ -128,6 +128,7 @@
 
         function addLog(msg) {
             const logDiv = document.getElementById('logs');
+            if(!logDiv) return;
             const entry = document.createElement('div');
             entry.innerText = `[${new Date().toLocaleTimeString()}] ${msg}`;
             logDiv.prepend(entry);
@@ -135,7 +136,8 @@
 
         async function syncWithGithub(dataToSave = null) {
             if (!config.token || !config.gistId) {
-                addLog("Falta configuración Cloud");
+                addLog("Modo Local (Configura Cloud para ver tus datos)");
+                render();
                 return;
             }
 
@@ -163,13 +165,13 @@
                     
                     if (contentStr && contentStr !== "{}") {
                         vaultData = JSON.parse(contentStr);
-                        addLog(dataToSave ? "Nube actualizada" : "Sincronizado");
+                        addLog(dataToSave ? "Nube actualizada" : "Datos recuperados de la nube");
                     } else {
-                        addLog("Bóveda inicializada");
+                        addLog("Bóveda conectada (Vacía)");
                     }
                     render();
                 } else {
-                    addLog("Error de API: " + response.status);
+                    addLog("Error de conexión: " + response.status);
                 }
             } catch (e) {
                 addLog("Error de red");
@@ -222,13 +224,13 @@
             const gistId = document.getElementById('gh-gist-id').value.trim();
             
             if (!token || !gistId) {
-                alert("Por favor rellena ambos campos");
+                alert("Por favor rellena ambos campos para sincronizar con la nube");
                 return;
             }
 
             config = { token, gistId };
             localStorage.setItem('gh_vault_config', JSON.stringify(config));
-            addLog("Configuración guardada localmente");
+            addLog("Configuración guardada. Conectando...");
             
             document.getElementById('config-modal').classList.add('hidden');
             syncWithGithub();
@@ -269,7 +271,7 @@
         }
 
         function deleteEntry(id) {
-            if(confirm("¿Eliminar este registro?")) {
+            if(confirm("¿Deseas eliminar este registro de la nube?")) {
                 vaultData.passwords = vaultData.passwords.filter(x => x.id !== id);
                 syncWithGithub(vaultData);
             }
@@ -284,12 +286,12 @@
         }
 
         function openPinModal() {
-            const pin = prompt("Ingrese su PIN (Default: 1234):");
+            const pin = prompt("Ingrese su PIN de seguridad:");
             if(pin === "1234") {
                 vaultData.settings.lastCheck = Date.now();
                 vaultData.settings.nextCheck = Date.now() + 604800000;
                 syncWithGithub(vaultData);
-                alert("Protocolo actualizado. Próximo check-in en 7 días.");
+                alert("Protocolo renovado. Tus datos están seguros.");
             } else if (pin !== null) {
                 alert("PIN incorrecto");
             }
@@ -297,13 +299,11 @@
 
         window.onload = () => {
             lucide.createIcons();
-            if(config.token && config.gistId) {
-                syncWithGithub();
-            } else {
-                openConfig();
-            }
+            // Carga inicial: Si hay config, trae los datos de GitHub
+            syncWithGithub();
         };
     </script>
 </body>
 </html>
+
 
