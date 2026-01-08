@@ -39,13 +39,16 @@
                 <i data-lucide="settings-2" class="w-5 h-5 text-neutral-400"></i>
             </button>
         </header>
+
         <div class="app-card p-8 mb-6 text-center">
             <p class="text-[10px] font-black text-neutral-500 uppercase tracking-[0.2em] mb-4">Check-in Protocolo</p>
             <div id="next-date" class="text-4xl font-mono font-black tracking-tighter mb-6 text-white">--/--/----</div>
             <button onclick="checkLife()" class="w-full bg-white text-black py-4 rounded-2xl font-black text-xs uppercase tracking-widest btn-press">REPORTE DE VIDA</button>
         </div>
+
         <div id="vault-list" class="space-y-3"></div>
     </div>
+
     <nav class="fixed bottom-0 left-0 right-0 h-20 bg-neutral-950/80 backdrop-blur-xl border-t border-white/5 flex items-center justify-around px-10 z-40">
         <button onclick="location.reload()" class="text-blue-500 flex flex-col items-center gap-1">
             <i data-lucide="layout-grid" class="w-6 h-6"></i>
@@ -59,6 +62,7 @@
             <i data-lucide="plus" class="w-6 h-6"></i>
         </button>
     </nav>
+
     <div id="modal-config" class="fixed inset-0 bg-black z-50 hidden flex flex-col p-10">
         <div class="flex-1 flex flex-col justify-center text-center">
             <h3 class="text-2xl font-black mb-8 uppercase italic">Configuración Cloud</h3>
@@ -70,6 +74,7 @@
         </div>
         <button onclick="toggleConfig()" class="py-10 text-neutral-600 font-bold text-[10px] uppercase text-center">Cerrar</button>
     </div>
+
     <div id="modal-add" class="fixed inset-0 bg-black/90 z-50 hidden flex items-end">
         <div class="w-full bg-neutral-900 rounded-t-[2.5rem] p-8 pb-12">
             <h3 class="font-black text-xl mb-6 uppercase">Nuevo Registro</h3>
@@ -81,6 +86,7 @@
             </div>
         </div>
     </div>
+
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
@@ -90,6 +96,7 @@
         let state = { passwords: [], settings: { nextCheck: Date.now() + 604800000 } };
         let config = JSON.parse(localStorage.getItem('gh_vault_v2')) || { token: '', gistId: '' };
         let visiblePass = {};
+
         async function sync(dataToSave = null) {
             if (!config.token || !config.gistId) return;
             try {
@@ -106,6 +113,7 @@
                 }
             } catch (e) { console.error(e); }
         }
+
         function render() {
             document.getElementById('next-date').textContent = new Date(state.settings.nextCheck).toLocaleDateString();
             const list = document.getElementById('vault-list');
@@ -116,6 +124,7 @@
             });
             lucide.createIcons();
         }
+
         function saveConfig() {
             config.token = document.getElementById('cfg-token').value.trim();
             config.gistId = document.getElementById('cfg-gist').value.trim();
@@ -123,6 +132,7 @@
             toggleConfig();
             sync();
         }
+
         function saveEntry() {
             const site = document.getElementById('new-site').value;
             const pass = document.getElementById('new-pass').value;
@@ -131,12 +141,14 @@
             sync(state);
             closeAddModal();
         }
+
         function deleteEntry(id) {
             if(confirm("¿Eliminar?")) {
                 state.passwords = state.passwords.filter(x => x.id !== id);
                 sync(state);
             }
         }
+
         function checkLife() {
             const pin = prompt("PIN:");
             if(pin === "1234") {
@@ -144,10 +156,12 @@
                 sync(state);
             }
         }
+
         function toggleConfig() { document.getElementById('modal-config').classList.toggle('hidden'); }
         function openAddModal() { document.getElementById('modal-add').classList.remove('hidden'); }
         function closeAddModal() { document.getElementById('modal-add').classList.add('hidden'); }
         function togglePass(id) { visiblePass[id] = !visiblePass[id]; render(); }
+
         window.onload = () => { lucide.createIcons(); if(config.token) sync(); };
     </script>
 </body>
