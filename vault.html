@@ -93,14 +93,14 @@
             <div id="pin-loading-state" class="hidden mb-4"><span class="custom-loader"></span></div>
             <i data-lucide="key-round" class="w-12 h-12 mx-auto mb-4 text-blue-500"></i>
             <h3 class="text-xl font-black mb-2 uppercase tracking-tighter italic">Acceso</h3>
-            <p class="text-[9px] text-neutral-500 uppercase font-bold mb-6 tracking-widest">Introduce tu PIN de 6 dígitos</p>
+            <p class="text-[9px] text-neutral-500 uppercase font-bold mb-6 tracking-widest">Introduce el PIN de 6 dígitos</p>
             
             <div class="relative mb-6">
                 <input id="pin-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autofocus
                     class="w-full bg-black border border-white/10 rounded-2xl p-5 text-center text-4xl font-black outline-none focus:border-blue-500/50 tracking-[0.5em]"
                     oninput="this.value = this.value.replace(/[^0-9]/g, ''); if(this.value.length === 6) submitPin()">
             </div>
-            <div id="pin-error" class="text-red-500 text-[10px] font-bold uppercase mb-4 hidden tracking-widest">PIN Incorrecto o Error de Sincronización</div>
+            <div id="pin-error" class="text-red-500 text-[10px] font-bold uppercase mb-4 hidden tracking-widest">PIN INCORRECTO</div>
             <button onclick="submitPin()" class="w-full bg-white text-black font-black py-4 rounded-2xl text-xs uppercase btn-press">DESBLOQUEAR</button>
             <button onclick="closeModals()" class="w-full text-neutral-700 font-bold text-[10px] uppercase mt-6">Cerrar</button>
         </div>
@@ -160,13 +160,15 @@
     </div>
 
     <script>
+        const REQUIRED_PIN = "010814"; // Pin de acceso definido
+
         let vaultData = {
             passwords: [],
             contacts: [],
             settings: { 
                 lastCheck: Date.now(), 
                 nextCheck: Date.now() + 604800000, 
-                pinVerify: null 
+                pinVerify: CryptoJS.SHA256(REQUIRED_PIN + "vault_salt_2024").toString()
             }
         };
 
@@ -191,7 +193,6 @@
             lucide.createIcons();
         }
 
-        // --- Criptografía ---
         function encrypt(data, key) {
             return CryptoJS.AES.encrypt(JSON.stringify(data), key).toString();
         }
@@ -209,13 +210,11 @@
             return CryptoJS.SHA256(pin + "vault_salt_2024").toString();
         }
 
-        // --- GitHub Sync Core ---
         async function syncWithGithub(dataToSave = null) {
             if (!config.token || !config.gistId) {
                 addLog("GitHub no configurado");
                 return false;
             }
-
             isSyncing = true;
             const syncIcon = document.getElementById('sync-icon');
             const syncText = document.getElementById('sync-text');
@@ -250,6 +249,9 @@
                         } else {
                             try {
                                 vaultData = JSON.parse(cloudContent);
+                                if (!vaultData.settings) vaultData.settings = {};
+                                // Asegurar que el hash sea el correcto si viene de un JSON plano
+                                vaultData.settings.pinVerify = createPinHash(REQUIRED_PIN);
                             } catch(e) {
                                 window.pendingCloudData = cloudContent;
                             }
@@ -329,7 +331,6 @@
 
         async function submitPin() {
             const pin = document.getElementById('pin-input').value;
-            // Cambiado a 6 dígitos
             if (pin.length < 6) return; 
             
             if (isSyncing) {
@@ -339,26 +340,22 @@
             }
             document.getElementById('pin-loading-state').classList.add('hidden');
 
-            const hash = createPinHash(pin);
-
-            if (window.pendingCloudData) {
-                const decrypted = decrypt(window.pendingCloudData, pin);
-                if (decrypted) {
-                    vaultData = decrypted;
-                    userMasterKey = pin;
-                    delete window.pendingCloudData;
-                    closeModals();
-                    addLog("Bóveda desbloqueada (Cloud)");
-                    render();
-                    return;
-                }
-            }
-
-            if (!vaultData.settings.pinVerify || hash === vaultData.settings.pinVerify) {
+            // Verificación estricta contra el PIN 010814
+            if (pin === REQUIRED_PIN) {
                 userMasterKey = pin;
-                if(!vaultData.settings.pinVerify) vaultData.settings.pinVerify = hash;
+
+                // Si hay datos en la nube pendientes de descifrar
+                if (window.pendingCloudData) {
+                    const decrypted = decrypt(window.pendingCloudData, pin);
+                    if (decrypted) {
+                        vaultData = decrypted;
+                        delete window.pendingCloudData;
+                        addLog("Bóveda sincronizada");
+                    }
+                }
+
                 closeModals();
-                addLog("Bóveda abierta");
+                addLog("Bóveda abierta con éxito");
                 render();
             } else {
                 const err = document.getElementById('pin-error');
@@ -457,6 +454,7 @@
     </script>
 </body>
 </html>
+
 
 
 
