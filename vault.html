@@ -15,6 +15,7 @@
         input:focus { outline: none; border-color: rgba(59, 130, 246, 0.5) !important; }
         .custom-loader { width: 20px; height: 20px; border: 2px solid #3b82f6; border-bottom-color: transparent; border-radius: 50%; display: inline-block; animation: rotation 1s linear infinite; }
         @keyframes rotation { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     </style>
 </head>
 <body class="min-h-screen p-4 md:p-8 pb-24">
@@ -88,16 +89,16 @@
 
     <!-- Modal PIN -->
     <div id="pin-modal" class="fixed inset-0 bg-black/95 backdrop-blur-xl hidden flex items-center justify-center p-6 z-[100]">
-        <div class="bg-neutral-900 border border-white/10 p-8 rounded-[3rem] w-full max-w-xs text-center shadow-2xl">
+        <div class="bg-neutral-900 border border-white/10 p-8 rounded-[3rem] w-full max-w-sm text-center shadow-2xl">
             <div id="pin-loading-state" class="hidden mb-4"><span class="custom-loader"></span></div>
             <i data-lucide="key-round" class="w-12 h-12 mx-auto mb-4 text-blue-500"></i>
             <h3 class="text-xl font-black mb-2 uppercase tracking-tighter italic">Acceso</h3>
-            <p class="text-[9px] text-neutral-500 uppercase font-bold mb-6 tracking-widest">Introduce tu PIN de 4 dígitos</p>
+            <p class="text-[9px] text-neutral-500 uppercase font-bold mb-6 tracking-widest">Introduce tu PIN de 6 dígitos</p>
             
             <div class="relative mb-6">
-                <input id="pin-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autofocus
-                    class="w-full bg-black border border-white/10 rounded-2xl p-5 text-center text-4xl font-black outline-none focus:border-blue-500/50"
-                    oninput="this.value = this.value.replace(/[^0-9]/g, ''); if(this.value.length === 4) submitPin()">
+                <input id="pin-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autofocus
+                    class="w-full bg-black border border-white/10 rounded-2xl p-5 text-center text-4xl font-black outline-none focus:border-blue-500/50 tracking-[0.5em]"
+                    oninput="this.value = this.value.replace(/[^0-9]/g, ''); if(this.value.length === 6) submitPin()">
             </div>
             <div id="pin-error" class="text-red-500 text-[10px] font-bold uppercase mb-4 hidden tracking-widest">PIN Incorrecto o Error de Sincronización</div>
             <button onclick="submitPin()" class="w-full bg-white text-black font-black py-4 rounded-2xl text-xs uppercase btn-press">DESBLOQUEAR</button>
@@ -199,6 +200,7 @@
             try {
                 const bytes = CryptoJS.AES.decrypt(cipherText, key);
                 const originalText = bytes.toString(CryptoJS.enc.Utf8);
+                if (!originalText) return null;
                 return JSON.parse(originalText);
             } catch (e) { return null; }
         }
@@ -242,21 +244,13 @@
                         const result = await response.json();
                         const cloudContent = result.files["vault_data.json"].content;
                         
-                        // Si ya tenemos la llave maestra, intentamos desencriptar
                         if (userMasterKey) {
                             const decrypted = decrypt(cloudContent, userMasterKey);
                             if (decrypted) vaultData = decrypted;
                         } else {
-                            // Si NO tenemos llave maestra, solo cargamos los settings para validar el PIN
-                            // Nota: En un sistema real, el hash del PIN debería estar fuera del encriptado principal 
-                            // o en un archivo aparte para poder validarlo antes de desencriptar todo.
-                            // Aquí asumimos que si no hay data, pinVerify es null.
                             try {
-                                // Intento de "peek" si no está encriptado (primera vez)
                                 vaultData = JSON.parse(cloudContent);
                             } catch(e) {
-                                // Si falla, asumimos que está encriptado y necesitamos el PIN primero.
-                                // Guardamos el contenido crudo para desencriptar después de meter el PIN
                                 window.pendingCloudData = cloudContent;
                             }
                         }
@@ -296,7 +290,7 @@
             vaultData.contacts.forEach(c => {
                 contactDiv.innerHTML += `
                     <div class="flex justify-between items-center bg-black/40 p-3 rounded-xl border border-white/5">
-                        <span class="text-[10px] font-bold text-neutral-400">${c}</span>
+                        <span class="text-[10px] font-bold text-neutral-400 truncate pr-2">${c}</span>
                         <i data-lucide="check-circle-2" class="w-3 h-3 text-green-500"></i>
                     </div>`;
             });
@@ -325,7 +319,7 @@
                             <p class="text-[10px] text-neutral-600 font-bold uppercase mb-4 truncate">${p.user || '---'}</p>
                             <div class="bg-black/50 p-4 rounded-2xl border border-white/5 flex justify-between items-center">
                                 <span class="text-xs font-mono text-neutral-300 tracking-widest truncate mr-2">${isVisible ? p.pass : '••••••••'}</span>
-                                <button onclick="togglePass(${p.id})" class="text-neutral-600 hover:text-white"><i data-lucide="${isVisible ? 'eye-off' : 'eye'}" class="w-4 h-4"></i></button>
+                                <button onclick="togglePass(${p.id})" class="text-neutral-600 hover:text-white flex-shrink-0"><i data-lucide="${isVisible ? 'eye-off' : 'eye'}" class="w-4 h-4"></i></button>
                             </div>
                         </div>`;
                 });
@@ -335,9 +329,9 @@
 
         async function submitPin() {
             const pin = document.getElementById('pin-input').value;
-            if (pin.length < 4) return;
+            // Cambiado a 6 dígitos
+            if (pin.length < 6) return; 
             
-            // Si estamos sincronizando, esperamos un poco
             if (isSyncing) {
                 document.getElementById('pin-loading-state').classList.remove('hidden');
                 setTimeout(submitPin, 500);
@@ -347,7 +341,6 @@
 
             const hash = createPinHash(pin);
 
-            // Intentar desencriptar con el PIN proporcionado si hay data pendiente de la nube
             if (window.pendingCloudData) {
                 const decrypted = decrypt(window.pendingCloudData, pin);
                 if (decrypted) {
@@ -355,13 +348,12 @@
                     userMasterKey = pin;
                     delete window.pendingCloudData;
                     closeModals();
-                    addLog("Bóveda desbloqueada con datos de nube");
+                    addLog("Bóveda desbloqueada (Cloud)");
                     render();
                     return;
                 }
             }
 
-            // Validación local / Fallback
             if (!vaultData.settings.pinVerify || hash === vaultData.settings.pinVerify) {
                 userMasterKey = pin;
                 if(!vaultData.settings.pinVerify) vaultData.settings.pinVerify = hash;
@@ -372,6 +364,7 @@
                 const err = document.getElementById('pin-error');
                 err.classList.remove('hidden');
                 setTimeout(() => err.classList.add('hidden'), 2000);
+                document.getElementById('pin-input').value = "";
             }
         }
 
@@ -459,11 +452,12 @@
 
         window.onload = () => { 
             lucide.createIcons(); 
-            syncWithGithub(); // Al cargar, traer lo que esté en la nube
+            syncWithGithub();
         };
     </script>
 </body>
 </html>
+
 
 
 
